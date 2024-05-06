@@ -1,0 +1,4 @@
+/target
+/Cargo.lock
+/.vscode
+/examples/test_blocks.txt
