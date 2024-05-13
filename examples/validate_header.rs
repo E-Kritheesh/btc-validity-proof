@@ -87,7 +87,7 @@ fn main() {
     let mut input2: Vec<[u64; 10]>= Vec::new();
     let mut counter_val = 0;
 
-    let filename = "/home/kritheesh/Sem8/EE492/validate-btc-header/examples/test_blocks.txt";
+    let filename = "./test_blocks.txt";
     if let Ok(lines) = read_lines(filename) {
         for line in lines {
             if let Ok(edge) = line {
