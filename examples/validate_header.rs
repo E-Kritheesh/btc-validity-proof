@@ -2,12 +2,7 @@ use std::time::Instant;
 use std::{fs::File, path::Path};
 use std::io::{self, BufRead};
 
-// use clap::{Arg, Command};
 use flate2::{write::ZlibEncoder, Compression};
-// use nova_sha256::sha256_step::{
-//     circuit::SHA256CompressionCircuit,
-//     util::{scalars_to_digest, sha256_initial_digest_scalars, DIGEST_LENGTH_BYTES},
-// };
 use validate_btc_header::btc_validation::header_step::BlockHeader;
 use nova_snark::{
     provider::{PallasEngine, VestaEngine},
@@ -30,24 +25,6 @@ where P: AsRef<Path>, {
 }
 
 fn main() {
-    // let cmd = Command::new("Nova-based SHA256 circuit proof generation and verification")
-    // .bin_name("sha256")
-    // .arg(
-    //     Arg::new("input_len_log")
-    //         .value_name("Log2 of the test input length")
-    //         .default_value("6")
-    //         .value_parser(clap::value_parser!(usize))
-    //         .long_help("Base 2 log of the test input length. For example, the value of 8 corresponds to 256 bytes of input. ")   
-    // )
-    // .after_help("This command generates a proof that the hash of 2^(input_log_len) zero bytes");
-
-    // let m = cmd.get_matches();
-    // let log_input_len = *m.get_one::<usize>("input_len_log").unwrap();
-    // let input_len = 1 << log_input_len;
-
-    // println!("Nova-based SHA256 compression function iterations");
-    // println!("=========================================================");
-
     type C1 = BlockHeader<<E1 as Engine>::Scalar>;
     type C2 = TrivialCircuit<<E2 as Engine>::Scalar>;
     let circuit_primary: C1 = BlockHeader::default();
@@ -93,7 +70,6 @@ fn main() {
             if let Ok(edge) = line {
                 counter_val = counter_val + 1;
                 let items: Vec<&str> = edge.trim().split(' ').collect();
-                // println!("{}", edge);
                 
                 let block_before_split = items[0];
                 let (left1, right9) = block_before_split.split_at(16);
@@ -105,8 +81,6 @@ fn main() {
                 let (left7, right3) = right4.split_at(16);
                 let (left8, right2) = right3.split_at(16);
                 let (left9, right1) = right2.split_at(16);
-
-                // println!("Block {} {} {} {} {} {} {} {} {} {}", left1, left2, left3, left4, left5, left6, left7, left8, left9, right1);
 
                 input_block[0] = u64::from_str_radix(left1, 16).unwrap();
                 input_block[1] = u64::from_str_radix(left2, 16).unwrap();
@@ -120,7 +94,6 @@ fn main() {
                 input_block[9] = u64::from_str_radix(right1, 16).unwrap();
 
                 input2.push(input_block);
-                // println!("{}", block_u64_chunk1);
                 if counter_val == 8064 {
                     break;
                 }
@@ -239,17 +212,4 @@ fn main() {
     println!("Total verification time: {:?}", verification_time);
 
     println!("=========================================================");
-
-    // let actual_hash_bytes = scalars_to_digest(res.unwrap().0.as_slice().try_into().unwrap());
-    // let mut hasher = Sha256::new();
-    // hasher.update(input);
-    // let expected_hash_bytes: [u8; DIGEST_LENGTH_BYTES] = hasher.finalize().try_into().unwrap();
-    // println!(
-    //     "Expected value of final hash = {:x?}",
-    //     hex::encode(expected_hash_bytes)
-    // );
-    // println!(
-    //     "Actual value of final hash   = {:x?}",
-    //     hex::encode(actual_hash_bytes)
-    // );
 }
