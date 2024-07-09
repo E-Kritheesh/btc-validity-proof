@@ -328,17 +328,19 @@ where
         // 3. Check if timestamp of the current block is greater than the median of previous 11 timestamps
         //
         let mut times_vec: Vec<u32> = Vec::new(); 
+        let mut fe_times_vec: Vec<AllocatedNum<F>> = Vec::new();
         for i in 1..=11 {
             let timestamp = z_i[i].get_value().or(Some(F::ONE)).unwrap();
             let (_s, time32) = f_to_nat(&timestamp).to_u32_digits();
             times_vec.push(time32[0]);
+            fe_times_vec.push(z_i[i].clone());
         }
 
         // compute median
         let median = median::compute_median_timestamp(&mut times_vec);
 
         // verify median
-        let r_median = median::verify_median_timestamp(cs.namespace(|| "median verify"), &mut times_vec, median).unwrap();
+        let r_median = median::verify_median_timestamp(cs.namespace(|| "median verify"), &mut fe_times_vec, median).unwrap();
         assert!(r_median.get_value().or(Some(true)).unwrap());
 
         // check if median < current timestamp

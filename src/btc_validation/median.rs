@@ -1,6 +1,5 @@
-use bellpepper::gadgets::boolean::AllocatedBit;
 use bellpepper::gadgets::boolean::Boolean;
-use bellpepper_core::{ConstraintSystem, SynthesisError};
+use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
 use bellpepper::gadgets::num::{AllocatedNum, Num};
 use ff::PrimeField;
 use crate::BitAccess;
@@ -13,19 +12,12 @@ pub fn compute_median_timestamp (prev_timestamps: &mut Vec<u32>) -> u32
     return prev_timestamps[prev_timestamps.len()/2];
 }
 
-pub fn verify_median_timestamp<Scalar, CS> (mut cs: CS, timestamp_array: &mut Vec<u32>, median: u32) -> Result<Boolean, SynthesisError>
+pub fn verify_median_timestamp<Scalar, CS> (mut cs: CS, fe_timestamps: &mut Vec<AllocatedNum<Scalar>>, median: u32) -> Result<Boolean, SynthesisError>
 where
 Scalar: PrimeField,
 CS: ConstraintSystem<Scalar>,
 {
     let fe_median = AllocatedNum::alloc(cs.namespace(|| "median"), || Ok(Scalar::from(median as u64))).unwrap();
-
-    let mut fe_timestamps = vec![];
-    let mut fe_temp: AllocatedNum<Scalar>;
-    for (i, stamp) in timestamp_array.iter().enumerate() {
-        fe_temp = AllocatedNum::alloc(cs.namespace(|| format!("timestamp {}", i)), || Ok(Scalar::from(*stamp as u64))).unwrap();
-        fe_timestamps.push(fe_temp);
-    }
 
     let mut n_median_occurrences = Num::zero();
     let mut sign_diff = AllocatedNum::alloc(cs.namespace(|| "sign_diff"), || Ok(Scalar::from(0u64))).unwrap();
@@ -53,15 +45,13 @@ CS: ConstraintSystem<Scalar>,
             Ok(mult_res)
             // Ok(Scalar::from(signum))
         }).unwrap();
-        
-        let eq_bit = AllocatedBit::alloc(cs.namespace(|| format!("equality {}", i)), res_eq.get_value())?;
-        let lt_bit_mul2 = AllocatedNum::alloc(cs.namespace(|| format!("less than {}", i)), || Ok(Scalar::from(2*(res_lt.get_value().unwrap() as u64)))).unwrap();
+
         // Constrain:
         // (1 - res_eq) * (1 - 2 * res_lt) == delta_sign
         cs.enforce(
             || format!("(1 - res_eq) * (1 - 2 * res_lt) == delta_sign {}", i),
-            |lc| lc + CS::one() - eq_bit.get_variable(),
-            |lc| lc + CS::one() - lt_bit_mul2.get_variable(),
+            |lc| lc + CS::one() - &res_eq.lc(CS::one(), Scalar::ONE),
+            |lc| lc + CS::one() - &res_lt.lc(CS::one(), Scalar::ONE) - &res_lt.lc(CS::one(), Scalar::ONE),
             |lc| lc + delta_sign.get_variable(),
         );
 
@@ -123,10 +113,10 @@ where
             Scalar::from_u128(2 << n_bits) 
         } 
         else { 
-            let mut shift = Scalar::from(2u64);
+            let mut shift = Scalar::ONE;
             let const_2 = Scalar::from(2u64);
 
-            for _i in 1..n_bits {
+            for _i in 0..=n_bits {
                 shift.mul_assign(&const_2);
             }
 
@@ -138,6 +128,27 @@ where
 
         Ok(cmp_val)
     }).unwrap();
+
+    // Enforcing zero_shifted_cmp = a - b + 2 << n_bits 
+    let mut lhs: LinearCombination<Scalar> = LinearCombination::zero();
+    let mut coeff = Scalar::ONE;
+
+    for _i in 0..=n_bits {
+        coeff = coeff.double();
+    }
+
+    lhs = lhs + (coeff, CS::one());
+
+    // Constrain:
+    // zero_shifted_cmp = a - b + 2 << n_bits
+    // lhs = a + 2 << n_bits - b
+    // rhs = zero_shifted_cmp
+    cs.enforce(
+        || "(a + 2 << n_bits - b) * 1 == zero_shifted_cmp",
+        |lc| lc + a.get_variable() + &lhs - b.get_variable(),
+        |lc| lc + CS::one(),
+        |lc| lc + zero_shifted_cmp.get_variable(),
+    );
 
     let n_bit_zero_cmp = AllocatedNum::alloc(cs.namespace(|| "n_bits zero cmp"), ||{
         let mut exponent = Scalar::ONE;
@@ -205,6 +216,27 @@ where
         Ok(cmp_val)
     }).unwrap();
 
+    // Enforcing zero_shifted_cmp = a - (b + 1) + 2 << n_bits 
+    let mut lhs: LinearCombination<Scalar> = LinearCombination::zero();
+    let mut coeff = Scalar::ONE;
+
+    for _i in 0..=n_bits {
+        coeff = coeff.double();
+    }
+
+    lhs = lhs + (coeff, CS::one()); 
+
+    // Constrain:
+    // zero_shifted_cmp = a - b - 1 + 2 << n_bits
+    // lhs = a + 2 << n_bits - b - 1
+    // rhs = zero_shifted_cmp
+    cs.enforce(
+        || "(a + 2 << n_bits - b - 1) * 1 == zero_shifted_cmp",
+        |lc| lc + a.get_variable() + &lhs - b.get_variable() - CS::one(),
+        |lc| lc + CS::one(),
+        |lc| lc + zero_shifted_cmp.get_variable(),
+    );
+
     let n_bit_zero_cmp = AllocatedNum::alloc(cs.namespace(|| "n_bits zero cmp leq"), ||{
         let mut exponent = Scalar::ONE;
         let sc_two = Scalar::ONE + Scalar::ONE;
@@ -248,8 +280,14 @@ mod tests {
         let mut timestamps: Vec<u32> = vec![11,2,3,4,6,6,8,6,10,9,1];
         // let mut timestamps: Vec<u32> = vec![11,11,11,11,11,11,11,11,11,11,11,11];
         let median: u32 = compute_median_timestamp(&mut timestamps);
+        let mut fe_timestamps = vec![];
+        let mut fe_temp: AllocatedNum<Fr>;
+        for (i, stamp) in timestamps.iter().enumerate() {
+            fe_temp = AllocatedNum::alloc(cs.namespace(|| format!("timestamp {}", i)), || Ok(Fr::from(*stamp as u64))).unwrap();
+            fe_timestamps.push(fe_temp);
+        }
 
-        let r = verify_median_timestamp(cs.namespace(|| "verify median"), &mut timestamps, median).unwrap().get_value().unwrap();
+        let r = verify_median_timestamp(cs.namespace(|| "verify median"), &mut fe_timestamps, median).unwrap().get_value().unwrap();
         assert!(r);
     }
 
@@ -285,6 +323,7 @@ mod tests {
         let r2 = less_than(cs.namespace(|| "r2"), &c, &d, n_bits).unwrap().get_value().unwrap();
 
         assert_eq!(r2, true);
+        assert!(cs.is_satisfied());
     }
 
     #[test]
@@ -303,6 +342,7 @@ mod tests {
         let r2 = less_than(cs.namespace(|| "r2"), &c, &d, n_bits).unwrap().get_value().unwrap();
 
         assert_eq!(r2, true);
+        assert!(cs.is_satisfied());
     }
 
     #[test]
@@ -315,5 +355,6 @@ mod tests {
         let r2 = leq(cs.namespace(|| "r2"), &c, &d, n_bits).unwrap().get_value().unwrap();
 
         assert_eq!(r2, true);
+        assert!(cs.is_satisfied());
     }
 }
