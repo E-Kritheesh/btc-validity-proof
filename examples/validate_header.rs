@@ -94,13 +94,13 @@ fn main() {
                 input_block[9] = u64::from_str_radix(right1, 16).unwrap();
 
                 input2.push(input_block);
-                if counter_val == 8064 {
-                    break;
-                }
+                // if counter_val == 8064 {
+                //     break;
+                // }
             }
         }
     }
-    assert_eq!(input2.len(), 8064);
+    assert_eq!(input2.len(), 20);
 
     // Block no. 123456-123470
     // let _input: Vec<[u64; 10]> = vec![[0x010000009500c43a, 0x25c624520b5100ad, 0xf82cb9f9da72fd24, 0x47a496bc600b0000, 0x000000006cd86237, 0x0395dedf1da2841c, 0xcda0fc489e3039de, 0x5f1ccddef0e83499, 0x1a65600ea6c8cb4d, 0xb3936a1ae3143991],
