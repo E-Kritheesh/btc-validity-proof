@@ -15,3 +15,5 @@ The following Bitcoin consensus rules are checked:
 * Median of timestamps
 
 Tests can be run using `cargo`.
+
+**Note:** A few soundness bugs have been found in this implementation of the consensus proofs with respect to field element assignments. These errors are present in the **main** branch. The branch **fix-assignment-bugs** is created to resolve these issues (the work is in progress).  
